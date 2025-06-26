@@ -112,3 +112,51 @@
 [36mINFO   [0m[2025-06-26T21:53:58+05:00] ERC20 Transfer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, Amount: 1000, TxHash: 0xfd03888ea73bc2a93876161e196e7796fa9c9fd42077544d550438b00a61c73a 
 [36mINFO   [0m[2025-06-26T21:53:58+05:00] ERC20 Transfer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 -> 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC, Amount: 2000, TxHash: 0x31dd69c6b06f8e0bbf325d5e5025000107589644f5843dbd2c8a4ad5f63497c6 
 [36mINFO   [0m[2025-06-26T21:53:58+05:00] ERC20 Transfer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, Amount: 500, TxHash: 0xa43c23ba69d3e2301d9b2ee157713a82466be22b3e1f43b850f2586d4a5a6228 
+[31mERROR  [0m[2025-06-26T21:56:36+05:00] Ошибка опроса событий: Post "http://localhost:8545": EOF 
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] 🚀 Запуск анализатора активности блокчейна    
+[33mWARNING[0m[2025-06-26T22:00:10+05:00] Файл .env не найден, используем переменные окружения 
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Успешное подключение к базе данных PostgreSQL 
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Миграции выполнены успешно                   
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Подключение к Ethereum RPC: http://localhost:8545 
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Chain ID: 31337                              
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] 📋 Используем ERC20 контракт: 0x5FbDB2315678afecb367f032d93F642f64180aa3 
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Подключение к Ethereum RPC: http://localhost:8545 
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Chain ID: 31337                              
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Запуск анализатора блокчейн активности...    
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Начинаем прослушивание событий контракта: 0x5FbDB2315678afecb367f032d93F642f64180aa3 (polling mode) 
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] Анализатор успешно запущен                   
+[36mINFO   [0m[2025-06-26T22:00:10+05:00] 📡 Анализатор работает. Нажмите Ctrl+C для остановки... 
+[31mERROR  [0m[2025-06-26T22:00:12+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:14+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:16+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:18+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:20+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:20+05:00] Ошибка обработки последнего блока: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:22+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:24+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:26+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:28+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:30+05:00] Ошибка обработки последнего блока: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:30+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:32+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:34+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:36+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:38+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:40+05:00] Ошибка обработки последнего блока: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:40+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:42+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:44+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:46+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:48+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:50+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:50+05:00] Ошибка обработки последнего блока: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:52+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:54+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:56+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:00:58+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:01:00+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:01:00+05:00] Ошибка обработки последнего блока: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:01:02+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:01:04+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:01:06+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
+[31mERROR  [0m[2025-06-26T22:01:08+05:00] Ошибка опроса событий: Post "http://localhost:8545": dial tcp [::1]:8545: connect: connection refused 
