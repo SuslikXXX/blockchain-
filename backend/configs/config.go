@@ -1,0 +1,67 @@
+package configs
+
+import (
+	"os"
+	"strconv"
+
+	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
+)
+
+type Config struct {
+	Database DatabaseConfig
+	Ethereum EthereumConfig
+	Server   ServerConfig
+}
+
+type DatabaseConfig struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
+	DBName   string
+	SSLMode  string
+}
+
+type EthereumConfig struct {
+	RPCEndpoint string
+	ChainID     int64
+	PrivateKey  string
+}
+
+type ServerConfig struct {
+	Port string
+	Host string
+}
+
+func Load() *Config {
+	err := godotenv.Load()
+	if err != nil {
+		logrus.Warning("Файл .env не найден, используем переменные окружения")
+	}
+
+	chainID, err := strconv.ParseInt(os.Getenv("ETH_CHAIN_ID"), 10, 64)
+	if err != nil {
+		logrus.Fatalf("Неверный формат ChainID: %v", err)
+	}
+
+	return &Config{
+		Database: DatabaseConfig{
+			Host:     os.Getenv("DB_HOST"),
+			Port:     os.Getenv("DB_PORT"),
+			User:     os.Getenv("DB_USER"),
+			Password: os.Getenv("DB_PASSWORD"),
+			DBName:   os.Getenv("DB_NAME"),
+			SSLMode:  os.Getenv("DB_SSL_MODE"),
+		},
+		Ethereum: EthereumConfig{
+			RPCEndpoint: os.Getenv("ETH_RPC_ENDPOINT"),
+			ChainID:     chainID,
+			PrivateKey:  os.Getenv("ETH_PRIVATE_KEY"),
+		},
+		Server: ServerConfig{
+			Port: os.Getenv("SERVER_PORT"),
+			Host: os.Getenv("SERVER_HOST"),
+		},
+	}
+}
