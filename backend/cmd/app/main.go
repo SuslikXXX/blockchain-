@@ -61,8 +61,11 @@ func main() {
 	}
 	defer ethClient.Close()
 
-	// Используем уже задеплоенный контракт
-	contractAddr := common.HexToAddress("0x70e0bA845a1A0F2DA3359C97E0285013525FFC49")
+	contractAddr := common.HexToAddress(cfg.Ethereum.ContractAddress)
+	if contractAddr == (common.Address{}) {
+		logrus.Fatalf("Неверный адрес контракта: %s", cfg.Ethereum.ContractAddress)
+	}
+
 	logrus.Infof("📋 Используем ERC20 контракт: %s", contractAddr.Hex())
 
 	// Создаем и запускаем анализатор

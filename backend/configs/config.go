@@ -24,9 +24,10 @@ type DatabaseConfig struct {
 }
 
 type EthereumConfig struct {
-	RPCEndpoint string
-	ChainID     int64
-	PrivateKey  string
+	RPCEndpoint     string
+	ChainID         int64
+	PrivateKey      string
+	ContractAddress string
 }
 
 type ServerConfig struct {
@@ -55,9 +56,10 @@ func Load() *Config {
 			SSLMode:  os.Getenv("DB_SSL_MODE"),
 		},
 		Ethereum: EthereumConfig{
-			RPCEndpoint: os.Getenv("ETH_RPC_ENDPOINT"),
-			ChainID:     chainID,
-			PrivateKey:  os.Getenv("ETH_PRIVATE_KEY"),
+			RPCEndpoint:     os.Getenv("ETH_RPC_ENDPOINT"),
+			ChainID:         chainID,
+			PrivateKey:      os.Getenv("ETH_PRIVATE_KEY"),
+			ContractAddress: os.Getenv("ETH_CONTRACT_ADDRESS"),
 		},
 		Server: ServerConfig{
 			Port: os.Getenv("SERVER_PORT"),
