@@ -18,3 +18,8 @@ ignition/deployments/chain-31337
 
 # Log-files
 *.log
+
+# Blockchain specific
+blockchain/node_modules/
+blockchain/cache/
+blockchain/artifacts/

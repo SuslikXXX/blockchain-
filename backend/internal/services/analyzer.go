@@ -7,11 +7,13 @@ import (
 	"backend/pkg/ethereum"
 	"backend/pkg/listeners"
 	"context"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 type Analyzer struct {
@@ -55,45 +57,85 @@ func (a *Analyzer) Start(ctx context.Context, contractAddress common.Address) er
 }
 
 func (a *Analyzer) startTransactionMonitoring(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
 	for {
 		select {
-		case <-ticker.C:
-			if err := a.processLatestBlock(ctx); err != nil {
-				logrus.Errorf("Ошибка обработки последнего блока: %v", err)
-			}
 		case <-ctx.Done():
 			logrus.Info("Остановка мониторинга транзакций")
 			return
+		default:
+			// Обрабатываем блоки
+			if err := a.processBlockRange(ctx); err != nil {
+				logrus.Errorf("Ошибка обработки диапазона блоков: %v", err)
+			}
+
+			// Ждем 10 секунд ПОСЛЕ обработки блоков
+			select {
+			case <-time.After(10 * time.Second):
+				continue
+			case <-ctx.Done():
+				logrus.Info("Остановка мониторинга транзакций")
+				return
+			}
 		}
 	}
 }
 
-func (a *Analyzer) processLatestBlock(ctx context.Context) error {
+func (a *Analyzer) processBlockRange(ctx context.Context) error {
 	client := a.ethClient.GetClient()
 
-	// Получаем последний блок
+	// Получаем текущий блок
 	header, err := client.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return err
 	}
+	currentBlock := header.Number.Uint64()
 
-	block, err := client.BlockByNumber(ctx, header.Number)
+	// Получаем последний обработанный блок
+	lastProcessedBlock, err := a.getLastProcessedBlock()
 	if err != nil {
 		return err
 	}
 
-	logrus.Debugf("Обработка блока #%d с %d транзакциями", block.Number().Uint64(), len(block.Transactions()))
+	// Если это первый запуск, начинаем с первого блока
+	if lastProcessedBlock == 0 {
+		logrus.Infof("Первый запуск анализатора. Начинаем обработку с первого блока")
+		lastProcessedBlock = 0 // Начинаем с блока 0, чтобы обработать все блоки с 1
+	}
 
-	// Обрабатываем каждую транзакцию в блоке
-	for _, tx := range block.Transactions() {
-		if err := a.processTransaction(ctx, tx, block.Time()); err != nil {
-			logrus.Errorf("Ошибка обработки транзакции %s: %v", tx.Hash().Hex(), err)
+	// Проверяем, сколько блоков нужно обработать
+	blocksToProcess := currentBlock - lastProcessedBlock
+	if blocksToProcess == 0 {
+		logrus.Debugf("Нет новых блоков для обработки. Текущий блок: #%d", currentBlock)
+		return nil
+	}
+
+	logrus.Infof("Нужно обработать %d блоков (с #%d по #%d)", blocksToProcess, lastProcessedBlock+1, currentBlock)
+
+	// Обрабатываем каждый блок в диапазоне
+	for blockNum := lastProcessedBlock + 1; blockNum <= currentBlock; blockNum++ {
+		if err := a.processBlock(ctx, blockNum); err != nil {
+			logrus.Errorf("Ошибка обработки блока #%d: %v", blockNum, err)
+
+			// Если блок не найден (например, блок 0 не существует), пропускаем и продолжаем
+			if blockNum <= 1 {
+				logrus.Warnf("Блок #%d недоступен, пропускаем", blockNum)
+				if err := a.saveLastProcessedBlock(blockNum); err != nil {
+					logrus.Errorf("Ошибка сохранения состояния для блока #%d: %v", blockNum, err)
+					return err
+				}
+				continue
+			}
+			return err
+		}
+
+		// Обновляем последний обработанный блок после каждого блока
+		if err := a.saveLastProcessedBlock(blockNum); err != nil {
+			logrus.Errorf("Ошибка сохранения состояния для блока #%d: %v", blockNum, err)
+			return err
 		}
 	}
 
+	logrus.Infof("Успешно обработано %d блоков", blocksToProcess)
 	return nil
 }
 
@@ -166,6 +208,81 @@ func (a *Analyzer) processTransaction(ctx context.Context, tx *types.Transaction
 
 	logrus.Debugf("Сохранена транзакция: %s", transaction.Hash)
 	return nil
+}
+
+func (a *Analyzer) processBlock(ctx context.Context, blockNum uint64) error {
+	client := a.ethClient.GetClient()
+
+	// Получаем блок по номеру
+	block, err := client.BlockByNumber(ctx, big.NewInt(int64(blockNum)))
+	if err != nil {
+		return err
+	}
+
+	logrus.Debugf("Обработка блока #%d с %d транзакциями", blockNum, len(block.Transactions()))
+
+	// Счетчики для статистики
+	processedCount := 0
+	errorCount := 0
+
+	// Обрабатываем каждую транзакцию в блоке
+	for _, tx := range block.Transactions() {
+		if err := a.processTransaction(ctx, tx, block.Time()); err != nil {
+			logrus.Errorf("Ошибка обработки транзакции %s: %v", tx.Hash().Hex(), err)
+			errorCount++
+		} else {
+			processedCount++
+		}
+	}
+
+	logrus.Debugf("Блок #%d обработан: %d транзакций успешно, %d ошибок",
+		blockNum, processedCount, errorCount)
+
+	return nil
+}
+
+func (a *Analyzer) getLastProcessedBlock() (uint64, error) {
+	var state models.AnalyzerState
+
+	// Попытка получить состояние из БД
+	result := repositories.DB.First(&state)
+	if result.Error != nil {
+		// Если запись не найдена, возвращаем 0 (первый запуск)
+		if result.Error == gorm.ErrRecordNotFound {
+			return 0, nil
+		}
+		return 0, result.Error
+	}
+
+	return state.LastProcessedBlock, nil
+}
+
+func (a *Analyzer) saveLastProcessedBlock(blockNumber uint64) error {
+	// Используем транзакцию для атомарности операции
+	return repositories.DB.Transaction(func(tx *gorm.DB) error {
+		var state models.AnalyzerState
+
+		// Попытка найти существующую запись с блокировкой
+		result := tx.Set("gorm:query_option", "FOR UPDATE").First(&state)
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				// Создаем новую запись
+				state = models.AnalyzerState{
+					LastProcessedBlock: blockNumber,
+				}
+				return tx.Create(&state).Error
+			}
+			return result.Error
+		}
+
+		// Обновляем существующую запись только если новый блок больше
+		if blockNumber > state.LastProcessedBlock {
+			state.LastProcessedBlock = blockNumber
+			return tx.Save(&state).Error
+		}
+
+		return nil // Блок уже обработан или более старый
+	})
 }
 
 func (a *Analyzer) Stop() {

@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
@@ -24,7 +25,9 @@ func Connect(ctx context.Context, cfg *configs.Config) error {
 	)
 
 	var err error
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return fmt.Errorf("не удалось подключиться к базе данных: %w", err)
 	}
@@ -41,6 +44,7 @@ func Migrate() error {
 	err := DB.AutoMigrate(
 		&models.Transaction{},
 		&models.ERC20Transfer{},
+		&models.AnalyzerState{},
 	)
 	if err != nil {
 		return fmt.Errorf("ошибка миграции: %w", err)

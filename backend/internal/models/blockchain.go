@@ -64,3 +64,11 @@ func (e *ERC20Transfer) GetValue() *big.Int {
 	value.SetString(e.Value, 10)
 	return value
 }
+
+// AnalyzerState - модель для сохранения состояния анализатора
+type AnalyzerState struct {
+	ID                 uint      `gorm:"primaryKey" json:"id"`
+	LastProcessedBlock uint64    `gorm:"not null" json:"last_processed_block"`
+	CreatedAt          time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt          time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
