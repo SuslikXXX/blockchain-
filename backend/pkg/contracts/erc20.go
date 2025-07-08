@@ -1,8 +1,8 @@
 package contracts
 
 import (
-	"io/ioutil"
 	"math/big"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -24,7 +24,7 @@ type ERC20Contract struct {
 func NewERC20Contract(address common.Address, backend bind.ContractBackend) (*ERC20Contract, error) {
 	// Читаем ABI из файла
 	abiPath := filepath.Join("..", "blockchain", "artifacts", "Token.abi")
-	abiData, err := ioutil.ReadFile(abiPath)
+	abiData, err := os.ReadFile(abiPath)
 	if err != nil {
 		return nil, err
 	}

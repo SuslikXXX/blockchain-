@@ -57,24 +57,17 @@ func (a *Analyzer) Start(ctx context.Context, contractAddress common.Address) er
 }
 
 func (a *Analyzer) startTransactionMonitoring(ctx context.Context) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			logrus.Info("Остановка мониторинга транзакций")
 			return
-		default:
-			// Обрабатываем блоки
+		case <-ticker.C:
 			if err := a.processBlockRange(ctx); err != nil {
 				logrus.Errorf("Ошибка обработки диапазона блоков: %v", err)
-			}
-
-			// Ждем 10 секунд ПОСЛЕ обработки блоков
-			select {
-			case <-time.After(10 * time.Second):
-				continue
-			case <-ctx.Done():
-				logrus.Info("Остановка мониторинга транзакций")
-				return
 			}
 		}
 	}
@@ -96,12 +89,6 @@ func (a *Analyzer) processBlockRange(ctx context.Context) error {
 		return err
 	}
 
-	// Если это первый запуск, начинаем с первого блока
-	if lastProcessedBlock == 0 {
-		logrus.Infof("Первый запуск анализатора. Начинаем обработку с первого блока")
-		lastProcessedBlock = 0 // Начинаем с блока 0, чтобы обработать все блоки с 1
-	}
-
 	// Проверяем, сколько блоков нужно обработать
 	blocksToProcess := currentBlock - lastProcessedBlock
 	if blocksToProcess == 0 {
@@ -113,18 +100,9 @@ func (a *Analyzer) processBlockRange(ctx context.Context) error {
 
 	// Обрабатываем каждый блок в диапазоне
 	for blockNum := lastProcessedBlock + 1; blockNum <= currentBlock; blockNum++ {
+
 		if err := a.processBlock(ctx, blockNum); err != nil {
 			logrus.Errorf("Ошибка обработки блока #%d: %v", blockNum, err)
-
-			// Если блок не найден (например, блок 0 не существует), пропускаем и продолжаем
-			if blockNum <= 1 {
-				logrus.Warnf("Блок #%d недоступен, пропускаем", blockNum)
-				if err := a.saveLastProcessedBlock(blockNum); err != nil {
-					logrus.Errorf("Ошибка сохранения состояния для блока #%d: %v", blockNum, err)
-					return err
-				}
-				continue
-			}
 			return err
 		}
 
@@ -174,11 +152,11 @@ func (a *Analyzer) processTransaction(ctx context.Context, tx *types.Transaction
 		BlockNumber: receipt.BlockNumber.Uint64(),
 		From:        from.Hex(),
 		To:          to,
+		Value:       tx.Value().String(),
 		GasUsed:     receipt.GasUsed,
 		Status:      uint64(receipt.Status),
 		Timestamp:   time.Unix(int64(blockTime), 0),
 	}
-	transaction.SetValue(tx.Value())
 
 	// Обрабатываем GasPrice для разных типов транзакций
 	if tx.GasPrice() != nil {

@@ -125,10 +125,10 @@ func (el *EventListener) processTransferEvent(ctx context.Context, vLog types.Lo
 		ContractAddress: el.contractAddress.Hex(),
 		From:            from.Hex(),
 		To:              to.Hex(),
+		Value:           value.String(),
 		BlockNumber:     vLog.BlockNumber,
 		LogIndex:        vLog.Index,
 	}
-	transfer.SetValue(value)
 
 	// Сохраняем в базу данных
 	result := repositories.DB.Create(transfer)

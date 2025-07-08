@@ -1,7 +1,6 @@
 package models
 
 import (
-	"math/big"
 	"time"
 )
 
@@ -32,37 +31,6 @@ type ERC20Transfer struct {
 	BlockNumber     uint64    `gorm:"not null;index:idx_erc20_block_time" json:"block_number"`
 	LogIndex        uint      `gorm:"not null" json:"log_index"`
 	CreatedAt       time.Time `gorm:"index:idx_erc20_block_time" json:"created_at"` // Составной индекс с BlockNumber
-}
-
-// Методы для работы с big.Int
-func (t *Transaction) SetValue(value *big.Int) {
-	t.Value = value.String()
-}
-
-func (t *Transaction) GetValue() *big.Int {
-	value := new(big.Int)
-	value.SetString(t.Value, 10)
-	return value
-}
-
-func (t *Transaction) SetGasPrice(value *big.Int) {
-	t.GasPrice = value.String()
-}
-
-func (t *Transaction) GetGasPrice() *big.Int {
-	value := new(big.Int)
-	value.SetString(t.GasPrice, 10)
-	return value
-}
-
-func (e *ERC20Transfer) SetValue(value *big.Int) {
-	e.Value = value.String()
-}
-
-func (e *ERC20Transfer) GetValue() *big.Int {
-	value := new(big.Int)
-	value.SetString(e.Value, 10)
-	return value
 }
 
 // AnalyzerState - модель для сохранения состояния анализатора
