@@ -1,6 +1,7 @@
 package models
 
 import (
+	"math/big"
 	"time"
 )
 
@@ -20,6 +21,61 @@ type Transaction struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// GetValue возвращает значение Value как big.Int
+func (t *Transaction) GetValue() *big.Int {
+	value, ok := big.NewInt(0).SetString(t.Value, 10)
+	if !ok {
+		return big.NewInt(0)
+	}
+	return value
+}
+
+// SetValue устанавливает значение Value из big.Int
+func (t *Transaction) SetValue(value *big.Int) {
+	if value != nil {
+		t.Value = value.String()
+	} else {
+		t.Value = "0"
+	}
+}
+
+// GetGasPrice возвращает цену газа как big.Int
+func (t *Transaction) GetGasPrice() *big.Int {
+	price, ok := big.NewInt(0).SetString(t.GasPrice, 10)
+	if !ok {
+		return big.NewInt(0)
+	}
+	return price
+}
+
+// SetGasPrice устанавливает цену газа из big.Int
+func (t *Transaction) SetGasPrice(price *big.Int) {
+	if price != nil {
+		t.GasPrice = price.String()
+	} else {
+		t.GasPrice = "0"
+	}
+}
+
+// GetTotalGasCost возвращает общую стоимость газа (GasUsed * GasPrice)
+func (t *Transaction) GetTotalGasCost() *big.Int {
+	gasPrice := t.GetGasPrice()
+	gasUsed := big.NewInt(int64(t.GasUsed))
+	return gasPrice.Mul(gasPrice, gasUsed)
+}
+
+// IsSuccessful проверяет успешность транзакции
+func (t *Transaction) IsSuccessful() bool {
+	return t.Status == 1
+}
+
+// GetTotalCost возвращает общую стоимость транзакции (Value + GasCost)
+func (t *Transaction) GetTotalCost() *big.Int {
+	value := t.GetValue()
+	gasCost := t.GetTotalGasCost()
+	return value.Add(value, gasCost)
+}
+
 // ERC20Transfer - оптимизированная модель для ERC20 трансферов
 type ERC20Transfer struct {
 	ID              uint      `gorm:"primaryKey" json:"id"`
@@ -31,6 +87,24 @@ type ERC20Transfer struct {
 	BlockNumber     uint64    `gorm:"not null;index:idx_erc20_block_time" json:"block_number"`
 	LogIndex        uint      `gorm:"not null" json:"log_index"`
 	CreatedAt       time.Time `gorm:"index:idx_erc20_block_time" json:"created_at"` // Составной индекс с BlockNumber
+}
+
+// GetValue возвращает значение Value как big.Int
+func (e *ERC20Transfer) GetValue() *big.Int {
+	value, ok := big.NewInt(0).SetString(e.Value, 10)
+	if !ok {
+		return big.NewInt(0)
+	}
+	return value
+}
+
+// SetValue устанавливает значение Value из big.Int
+func (e *ERC20Transfer) SetValue(value *big.Int) {
+	if value != nil {
+		e.Value = value.String()
+	} else {
+		e.Value = "0"
+	}
 }
 
 // AnalyzerState - модель для сохранения состояния анализатора

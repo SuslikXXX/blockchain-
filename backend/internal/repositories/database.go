@@ -45,6 +45,9 @@ func Migrate() error {
 		&models.Transaction{},
 		&models.ERC20Transfer{},
 		&models.AnalyzerState{},
+		&models.AccountStats{},
+		&models.AccountActivity{},
+		&models.TokenBalance{},
 	)
 	if err != nil {
 		return fmt.Errorf("ошибка миграции: %w", err)

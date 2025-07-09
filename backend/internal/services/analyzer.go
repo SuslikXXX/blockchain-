@@ -17,9 +17,10 @@ import (
 )
 
 type Analyzer struct {
-	ethClient     *ethereum.Client
-	eventListener *listeners.EventListener
-	config        *configs.Config
+	ethClient       *ethereum.Client
+	eventListener   *listeners.EventListener
+	accountAnalyzer *AccountAnalyzer
+	config          *configs.Config
 }
 
 func NewAnalyzer(cfg *configs.Config) (*Analyzer, error) {
@@ -28,9 +29,13 @@ func NewAnalyzer(cfg *configs.Config) (*Analyzer, error) {
 		return nil, err
 	}
 
+	// ИСПРАВЛЕНО: создаем общий репозиторий для всех сервисов
+	accountRepo := repositories.NewAccountRepository()
+
 	return &Analyzer{
-		ethClient: ethClient,
-		config:    cfg,
+		ethClient:       ethClient,
+		accountAnalyzer: NewAccountAnalyzer(accountRepo),
+		config:          cfg,
 	}, nil
 }
 
@@ -52,6 +57,9 @@ func (a *Analyzer) Start(ctx context.Context, contractAddress common.Address) er
 	// Запускаем мониторинг транзакций
 	go a.startTransactionMonitoring(ctx)
 
+	// Запускаем периодические задачи анализа аккаунтов
+	go a.accountAnalyzer.StartPeriodicTasks(ctx)
+
 	logrus.Info("Анализатор успешно запущен")
 	return nil
 }
@@ -60,12 +68,18 @@ func (a *Analyzer) startTransactionMonitoring(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	// Обрабатываем первый раз сразу при запуске
+	if err := a.processBlockRange(ctx); err != nil {
+		logrus.Errorf("Ошибка обработки диапазона блоков: %v", err)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			logrus.Info("Остановка мониторинга транзакций")
 			return
 		case <-ticker.C:
+			// Обрабатываем блоки каждую секунду
 			if err := a.processBlockRange(ctx); err != nil {
 				logrus.Errorf("Ошибка обработки диапазона блоков: %v", err)
 			}
@@ -160,13 +174,13 @@ func (a *Analyzer) processTransaction(ctx context.Context, tx *types.Transaction
 
 	// Обрабатываем GasPrice для разных типов транзакций
 	if tx.GasPrice() != nil {
-		transaction.GasPrice = tx.GasPrice().String()
+		transaction.SetGasPrice(tx.GasPrice())
 	} else {
 		// Для EIP-1559 транзакций используем EffectiveGasPrice из receipt
 		if receipt.EffectiveGasPrice != nil {
-			transaction.GasPrice = receipt.EffectiveGasPrice.String()
+			transaction.SetGasPrice(receipt.EffectiveGasPrice)
 		} else {
-			transaction.GasPrice = "0"
+			transaction.SetGasPrice(big.NewInt(0))
 		}
 	}
 
@@ -182,6 +196,12 @@ func (a *Analyzer) processTransaction(ctx context.Context, tx *types.Transaction
 	result = repositories.DB.Create(transaction)
 	if result.Error != nil {
 		return result.Error
+	}
+
+	// Обновляем статистику аккаунтов
+	if err := a.accountAnalyzer.UpdateAccountStats(transaction); err != nil {
+		logrus.Errorf("Ошибка обновления статистики аккаунтов для транзакции %s: %v", transaction.Hash, err)
+		// Не возвращаем ошибку, чтобы не прерывать обработку транзакций
 	}
 
 	logrus.Debugf("Сохранена транзакция: %s", transaction.Hash)
