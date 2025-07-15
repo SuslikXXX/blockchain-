@@ -6,6 +6,7 @@ import (
 	"backend/internal/utils"
 	"backend/pkg/ethereum"
 	"context"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -118,6 +119,21 @@ func (c *ActivityCalculator) CalculateTokenInteractions(address string, stats *m
 	return nil
 }
 
+func (c *ActivityCalculator) CalculateETHBalance(address string, stats *models.AccountStats) error {
+	if c.ethClient == nil {
+		return fmt.Errorf("eth client not initialized")
+	}
+
+	balance, err := c.ethClient.GetBalance(context.Background(), common.HexToAddress(address))
+	if err != nil {
+		return fmt.Errorf("ошибка получения баланса ETH: %v", err)
+	}
+
+	stats.SetETHBalance(balance)
+	logrus.Debugf("Аккаунт %s: баланс ETH = %s wei", address, balance.String())
+	return nil
+}
+
 func (c *ActivityCalculator) CalculateAllMetrics(address string, stats *models.AccountStats) error {
 	// Рассчитываем все метрики для аккаунта
 	if err := c.CalculateTransactionFrequency(address, stats); err != nil {
@@ -132,6 +148,12 @@ func (c *ActivityCalculator) CalculateAllMetrics(address string, stats *models.A
 
 	if err := c.CalculateTokenInteractions(address, stats); err != nil {
 		logrus.Errorf("Ошибка расчета взаимодействий с токенами для %s: %v", address, err)
+		return err
+	}
+
+	// Добавляем расчет баланса ETH
+	if err := c.CalculateETHBalance(address, stats); err != nil {
+		logrus.Errorf("Ошибка получения баланса ETH для %s: %v", address, err)
 		return err
 	}
 

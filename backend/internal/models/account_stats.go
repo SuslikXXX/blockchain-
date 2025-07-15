@@ -13,6 +13,7 @@ type AccountStats struct {
 	LastActivityTime  *time.Time
 	FirstActivityTime *time.Time
 	TotalVolumeETH    string `gorm:"default:'0'"`
+	ETHBalance        string `gorm:"default:'0'"` // Баланс ETH
 	UniqueTokensCount uint32 `gorm:"default:0"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
@@ -28,6 +29,23 @@ func (a *AccountStats) SetTotalVolumeETH(value *big.Int) {
 
 func (a *AccountStats) GetTotalVolumeETH() *big.Int {
 	value, ok := big.NewInt(0).SetString(a.TotalVolumeETH, 10)
+	if !ok {
+		return big.NewInt(0)
+	}
+	return value
+}
+
+// Методы для работы с балансом ETH
+func (a *AccountStats) SetETHBalance(value *big.Int) {
+	if value != nil {
+		a.ETHBalance = value.String()
+	} else {
+		a.ETHBalance = "0"
+	}
+}
+
+func (a *AccountStats) GetETHBalance() *big.Int {
+	value, ok := big.NewInt(0).SetString(a.ETHBalance, 10)
 	if !ok {
 		return big.NewInt(0)
 	}

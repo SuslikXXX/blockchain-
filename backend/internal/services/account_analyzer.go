@@ -135,6 +135,12 @@ func (a *AccountAnalyzer) updateSingleAccountStats(address string, tx *models.Tr
 		stats.SetTotalVolumeETH(newVolume)
 	}
 
+	// Обновляем баланс ETH
+	if err := a.calculator.CalculateETHBalance(address, stats); err != nil {
+		logrus.Errorf("Ошибка обновления баланса ETH для %s: %v", address, err)
+		// Не возвращаем ошибку, чтобы не прерывать обновление других метрик
+	}
+
 	// Сохраняем обновленную статистику
 	if err := a.accountRepo.UpdateAccountStats(stats); err != nil {
 		return err
