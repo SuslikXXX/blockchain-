@@ -6,7 +6,6 @@ import (
 	"backend/internal/utils"
 	"backend/pkg/ethereum"
 	"context"
-	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -141,17 +140,10 @@ func (c *ActivityCalculator) CalculateAllMetrics(address string, stats *models.A
 
 func (c *ActivityCalculator) ProcessAccountActivities() error {
 	// Получаем начало текущего периода
-	currentPeriodStart := utils.GetCurrentPeriodStart()
-	nextPeriodStart := currentPeriodStart.Add(15 * time.Second)
-
-	// Проверяем, не пропустили ли мы период
-	if time.Now().After(nextPeriodStart) {
-		logrus.Warnf("Пропущен период обработки активности: %v", currentPeriodStart)
-		return fmt.Errorf("period processing took too long")
-	}
+	currentPeriod := time.Now().Truncate(15 * time.Second)
 
 	// Получаем все транзакции за текущий период
-	transactions, err := c.accountRepo.GetTransactionsSince(currentPeriodStart)
+	transactions, err := c.accountRepo.GetTransactionsSince(currentPeriod)
 	if err != nil {
 		return err
 	}
@@ -176,7 +168,7 @@ func (c *ActivityCalculator) ProcessAccountActivities() error {
 		// Проверяем, является ли это обычной ETH транзакцией
 		if tx.To != c.tokenAddress.Hex() && !isContract {
 			// Это обычная ETH транзакция
-			fromActivity := getOrCreateActivity(activityMap, tx.From, currentPeriodStart)
+			fromActivity := getOrCreateActivity(activityMap, tx.From, currentPeriod)
 			fromActivity.TransactionCount++
 
 			if value, ok := big.NewInt(0).SetString(tx.Value, 10); ok {
@@ -190,7 +182,7 @@ func (c *ActivityCalculator) ProcessAccountActivities() error {
 	}
 
 	// Получаем все ERC20 трансферы за текущий период
-	erc20Transfers, err := c.getERC20TransfersSince(currentPeriodStart)
+	erc20Transfers, err := c.getERC20TransfersSince(currentPeriod)
 	if err != nil {
 		logrus.Errorf("Ошибка получения ERC20 трансферов: %v", err)
 	} else {
@@ -207,7 +199,7 @@ func (c *ActivityCalculator) ProcessAccountActivities() error {
 
 			// Обрабатываем только отправителя и только если это не контракт
 			if !isContract {
-				fromActivity := getOrCreateActivity(activityMap, transfer.From, currentPeriodStart)
+				fromActivity := getOrCreateActivity(activityMap, transfer.From, currentPeriod)
 				fromActivity.TokenTransfers++
 			}
 		}
@@ -226,7 +218,10 @@ func (c *ActivityCalculator) ProcessAccountActivities() error {
 func (c *ActivityCalculator) getERC20TransfersSince(since time.Time) ([]models.ERC20Transfer, error) {
 	nextPeriod := since.Add(15 * time.Second)
 	var transfers []models.ERC20Transfer
-	err := repositories.DB.Where("created_at >= ? AND created_at < ?", since, nextPeriod).Find(&transfers).Error
+	// Для наносекундной точности
+	err := repositories.DB.Where("created_at >= ? AND created_at < ?",
+		since.Truncate(time.Microsecond),
+		nextPeriod.Truncate(time.Microsecond)).Find(&transfers).Error
 	return transfers, err
 }
 

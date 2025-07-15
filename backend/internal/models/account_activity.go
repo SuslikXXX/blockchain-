@@ -39,3 +39,7 @@ func (a *AccountActivity) GetVolumeETH() *big.Int {
 	}
 	return value
 }
+
+func GetPeriodStart(t time.Time) time.Time {
+	return t.Truncate(15 * time.Second)
+}

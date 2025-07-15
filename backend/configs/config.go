@@ -11,9 +11,10 @@ import (
 )
 
 type Config struct {
-	Database DatabaseConfig
-	Ethereum EthereumConfig
-	Server   ServerConfig
+	Database    DatabaseConfig
+	Ethereum    EthereumConfig
+	Server      ServerConfig
+	TelegramBot TelegramBotConfig
 }
 
 type DatabaseConfig struct {
@@ -35,6 +36,11 @@ type EthereumConfig struct {
 type ServerConfig struct {
 	Port string
 	Host string
+}
+
+type TelegramBotConfig struct {
+	BotToken string
+	ChatID   string // теперь просто строка для одного ID
 }
 
 func Load() *Config {
@@ -74,6 +80,10 @@ func Load() *Config {
 		Server: ServerConfig{
 			Port: os.Getenv("SERVER_PORT"),
 			Host: os.Getenv("SERVER_HOST"),
+		},
+		TelegramBot: TelegramBotConfig{
+			BotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
+			ChatID:   os.Getenv("TELEGRAM_CHAT_ID"), // один ID
 		},
 	}
 }

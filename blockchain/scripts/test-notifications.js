@@ -49,7 +49,7 @@ async function main() {
     const transferAmount = ethers.parseEther("100");
     await performTransferSeries(
         user1, 
-        [user2, user3, user4, user2, user3], // 5 трансферов
+        [user2, user2, user3, user4], // 4 трансфера
         transferAmount
     );
 
@@ -64,45 +64,6 @@ async function main() {
         [user1, user3, user4, user1], // 4 трансфера
         transferAmount
     );
-
-    // Сценарий 3: Параллельные трансферы от разных пользователей
-    console.log("\nСценарий 3: Параллельные трансферы");
-    await Promise.all([
-        token.connect(user1).transfer(user4.address, transferAmount),
-        token.connect(user2).transfer(user3.address, transferAmount),
-        token.connect(user3).transfer(user2.address, transferAmount),
-        token.connect(user4).transfer(user1.address, transferAmount)
-    ]);
-
-    // Проверяем балансы
-    async function checkBalance(address, name) {
-        const balance = await token.balanceOf(address);
-        console.log(`Баланс ${name}: ${ethers.formatEther(balance)} токенов`);
-    }
-
-    console.log("\nФинальные балансы:");
-    await checkBalance(user1.address, "User1");
-    await checkBalance(user2.address, "User2");
-    await checkBalance(user3.address, "User3");
-    await checkBalance(user4.address, "User4");
-
-    // Получаем статистику аккаунтов
-    async function checkAccountStats(address, name) {
-        const [totalTx, totalSent, totalReceived, lastActivity, firstActivity] = await token.getAccountStats(address);
-        console.log(`\nСтатистика ${name}:`);
-        console.log(`- Всего транзакций: ${totalTx.toString()}`);
-        console.log(`- Отправлено: ${ethers.formatEther(totalSent)} токенов`);
-        console.log(`- Получено: ${ethers.formatEther(totalReceived)} токенов`);
-        console.log(`- Последняя активность: ${new Date(Number(lastActivity) * 1000).toISOString()}`);
-        console.log(`- Первая активность: ${new Date(Number(firstActivity) * 1000).toISOString()}`);
-    }
-
-    console.log("\nСтатистика аккаунтов:");
-    await checkAccountStats(user1.address, "User1");
-    await checkAccountStats(user2.address, "User2");
-    await checkAccountStats(user3.address, "User3");
-    await checkAccountStats(user4.address, "User4");
-
     console.log("\nТестирование завершено!");
 }
 

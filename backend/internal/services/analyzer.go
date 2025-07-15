@@ -51,7 +51,7 @@ func NewAnalyzer(cfg *configs.Config) (*Analyzer, error) {
 	contractAnalyzer := NewContractAnalyzer(ethClient, accountRepo, tokenAddress)
 
 	// Создаем нотификатор
-	notifier, err := NewNotifier()
+	notifier, err := NewNotifier(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка создания нотификатора: %v", err)
 	}
