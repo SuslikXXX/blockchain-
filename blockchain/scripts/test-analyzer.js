@@ -7,30 +7,30 @@ async function main() {
   const [owner, addr1, addr2, addr3, addr4] = await hre.ethers.getSigners();
   
   console.log("Адреса для тестирования:");
-  console.log("Owner:", owner.address);
-  console.log("Addr1:", addr1.address);
-  console.log("Addr2:", addr2.address);
-  console.log("Addr3:", addr3.address);
-  console.log("Addr4:", addr4.address);
-  
-  // Деплоим новый токен для тестирования
+  console.log("Адрес владельца:", owner.address);
+  console.log("Адрес аккаунта 1:", addr1.address);
+  console.log("Адрес аккаунта 2:", addr2.address);
+  console.log("Адрес аккаунта 3:", addr3.address);
+  console.log("Адрес аккаунта 4:", addr4.address);
+
   console.log("\n🚀 Деплой токена...");
-  const Token = await hre.ethers.getContractFactory("Token");
-  const token = await Token.deploy("AnalyzerTestToken", "ATT", 10000000); // 10M tokens
+  const Token = await hre.ethers.getContractFactory("AnalyzerToken");
+  const token = await Token.deploy(
+    "Test Token", 
+    "TST", 
+    10000000 //10M
+  );
   await token.waitForDeployment();
   
   const tokenAddress = await token.getAddress();
   console.log("✅ Token задеплоен:", tokenAddress);
-  
-  // Проверяем баланс owner
-  const ownerBalance = await token.balanceOf(owner.address);
-  console.log(`💰 Баланс owner: ${hre.ethers.formatEther(ownerBalance)} ATT`);
-  
-  console.log("\n📊 Начинаем создание множественных транзакций...");
-  console.log("Это должно создать много блоков для тестирования анализатора\n");
+ 
+  const decimals = await token.decimals();
+  ownerBalance = await token.balanceOf(owner.address);
+  console.log(`💰 Баланс owner: ${hre.ethers.formatEther(ownerBalance)} TST`);
   
   const transactions = [];
-  const transferAmount = hre.ethers.parseEther("1000"); // 1000 tokens per transfer
+  const transferAmount = hre.ethers.parseEther("1000");
   
   try {
     // Транзакция 1: Owner -> Addr1
@@ -129,33 +129,24 @@ async function main() {
     throw error;
   }
   
-  console.log("\n📈 Статистика транзакций:");
-  console.log(`✅ Всего создано транзакций: ${transactions.length}`);
-  console.log(`🔢 Диапазон блоков: ${Math.min(...transactions.map(t => t.block))} - ${Math.max(...transactions.map(t => t.block))}`);
-  console.log(`📊 Количество блоков: ${Math.max(...transactions.map(t => t.block)) - Math.min(...transactions.map(t => t.block)) + 1}`);
-  
-  console.log("\n🎯 Информация для анализатора:");
   console.log(`📍 Адрес контракта: ${tokenAddress}`);
-  console.log("🔍 Анализатор должен обработать все эти блоки и транзакции");
   
   // Показываем финальные балансы
   console.log("\n💰 Финальные балансы:");
-  const finalBalances = await Promise.all([
-    token.balanceOf(owner.address),
-    token.balanceOf(addr1.address),
-    token.balanceOf(addr2.address),
-    token.balanceOf(addr3.address),
-    token.balanceOf(addr4.address)
-  ]);
-  
-  console.log(`Owner: ${hre.ethers.formatEther(finalBalances[0])} ATT`);
-  console.log(`Addr1: ${hre.ethers.formatEther(finalBalances[1])} ATT`);
-  console.log(`Addr2: ${hre.ethers.formatEther(finalBalances[2])} ATT`);
-  console.log(`Addr3: ${hre.ethers.formatEther(finalBalances[3])} ATT`);
-  console.log(`Addr4: ${hre.ethers.formatEther(finalBalances[4])} ATT`);
-  
-  console.log("\n🏁 Тестирование завершено!");
-  console.log("💡 Теперь запустите анализатор с адресом контракта:", tokenAddress);
+
+// Get all balances first (await each one)
+  ownerBalance = await token.balanceOf(owner.address);
+  const addr1Balance = await token.balanceOf(addr1.address);
+  const addr2Balance = await token.balanceOf(addr2.address);
+  const addr3Balance = await token.balanceOf(addr3.address);
+  const addr4Balance = await token.balanceOf(addr4.address);
+
+  console.log("Аккаунта владельца:", ethers.formatUnits(ownerBalance, decimals));
+  console.log("Аккаунт 1:", ethers.formatUnits(addr1Balance, decimals));
+  console.log("Аккаунт 2:", ethers.formatUnits(addr2Balance, decimals));
+  console.log("Аккаунт 3:", ethers.formatUnits(addr3Balance, decimals));
+  console.log("Аккаунт 4:", ethers.formatUnits(addr4Balance, decimals));
+
 }
 
 main()

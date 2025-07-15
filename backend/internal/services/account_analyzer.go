@@ -4,9 +4,10 @@ import (
 	"backend/internal/models"
 	"backend/internal/repositories"
 	"backend/internal/utils"
-	"context"
+	"backend/pkg/ethereum"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 )
 
@@ -14,29 +15,39 @@ type AccountAnalyzer struct {
 	accountRepo  *repositories.AccountRepository
 	calculator   *ActivityCalculator
 	tokenTracker *TokenTracker
+	tokenAddress common.Address
 }
 
-// ИСПРАВЛЕНО: добавлен конструктор с dependency injection
-func NewAccountAnalyzer(accountRepo *repositories.AccountRepository) *AccountAnalyzer {
+// ИСПРАВЛЕНО: добавлен tokenAddress в конструктор
+func NewAccountAnalyzer(accountRepo *repositories.AccountRepository, ethClient *ethereum.Client, tokenAddress common.Address) *AccountAnalyzer {
 	return &AccountAnalyzer{
 		accountRepo:  accountRepo,
-		calculator:   NewActivityCalculator(accountRepo),
+		calculator:   NewActivityCalculator(accountRepo, ethClient, tokenAddress),
 		tokenTracker: NewTokenTracker(accountRepo),
+		tokenAddress: tokenAddress,
 	}
 }
 
 // Deprecated: оставлен для совместимости, но лучше использовать конструктор с DI
 func NewAccountAnalyzerDeprecated() *AccountAnalyzer {
 	repo := repositories.NewAccountRepository()
+	zeroAddress := common.Address{} // Используем нулевой адрес для обратной совместимости
 	return &AccountAnalyzer{
 		accountRepo:  repo,
-		calculator:   NewActivityCalculator(repo),
+		calculator:   NewActivityCalculator(repo, nil, zeroAddress),
 		tokenTracker: NewTokenTracker(repo),
+		tokenAddress: zeroAddress,
 	}
 }
 
 // AnalyzeAccountActivity анализирует активность конкретного аккаунта
 func (a *AccountAnalyzer) AnalyzeAccountActivity(address string) (*models.AccountStats, error) {
+	// Проверяем, не является ли адрес контрактом
+	if a.calculator.isContract(address) {
+		logrus.Debugf("Пропускаем анализ контракта %s", address)
+		return nil, nil
+	}
+
 	// Получаем или создаем статистику аккаунта
 	stats, err := a.accountRepo.GetOrCreateAccountStats(address)
 	if err != nil {
@@ -60,6 +71,13 @@ func (a *AccountAnalyzer) AnalyzeAccountActivity(address string) (*models.Accoun
 
 // UpdateAccountStats обновляет статистику аккаунтов при обработке транзакции
 func (a *AccountAnalyzer) UpdateAccountStats(tx *models.Transaction) error {
+	// Проверяем на нулевой адрес
+	zeroAddress := "0x0000000000000000000000000000000000000000"
+	if tx.To == zeroAddress {
+		logrus.Debugf("Пропускаем обновление статистики для транзакции с нулевым адресом получателя: %s", tx.Hash)
+		return nil
+	}
+
 	// Обновляем статистику отправителя
 	if err := a.updateSingleAccountStats(tx.From, tx, true); err != nil {
 		return err
@@ -77,13 +95,28 @@ func (a *AccountAnalyzer) UpdateAccountStats(tx *models.Transaction) error {
 
 // updateSingleAccountStats обновляет статистику одного аккаунта
 func (a *AccountAnalyzer) updateSingleAccountStats(address string, tx *models.Transaction, isSender bool) error {
+	// Пропускаем нулевой адрес
+	if address == "0x0000000000000000000000000000000000000000" {
+		return nil
+	}
+
+	// Пропускаем контракты
+	if !isSender { // отправители не могут быть контрактами
+		if a.calculator.isContract(address) {
+			logrus.Debugf("Пропускаем обновление статистики для контракта %s", address)
+			return nil
+		}
+	}
+
 	stats, err := a.accountRepo.GetOrCreateAccountStats(address)
 	if err != nil {
 		return err
 	}
 
-	// Обновляем общие метрики
-	stats.TotalTransactions++
+	// Обновляем общие метрики только для отправителя
+	if isSender {
+		stats.TotalTransactions++
+	}
 
 	// Обновляем время активности
 	if stats.LastActivityTime == nil || tx.Timestamp.After(*stats.LastActivityTime) {
@@ -102,54 +135,12 @@ func (a *AccountAnalyzer) updateSingleAccountStats(address string, tx *models.Tr
 		stats.SetTotalVolumeETH(newVolume)
 	}
 
-	// Обновляем метрики последних 15 секунд
-	// ИСПРАВЛЕНО: используем утилитарную функцию для расчета периода
-	currentPeriodStart := utils.GetCurrentPeriodStart()
-
-	if tx.Timestamp.After(currentPeriodStart) && tx.Timestamp.Before(time.Now()) {
-		stats.LastPeriodTransactions++
-
-		if isSender {
-			currentPeriodVolume := stats.GetLastPeriodVolumeETH()
-			txValue := tx.GetValue()
-			newPeriodVolume := currentPeriodVolume.Add(currentPeriodVolume, txValue)
-			stats.SetLastPeriodVolumeETH(newPeriodVolume)
-		}
-	}
-
 	// Сохраняем обновленную статистику
 	if err := a.accountRepo.UpdateAccountStats(stats); err != nil {
 		return err
 	}
 
 	logrus.Debugf("Обновлена статистика аккаунта %s: транзакций = %d", address, stats.TotalTransactions)
-	return nil
-}
-
-// CalculatePeriodStats пересчитывает статистику каждые 15 секунд для активных аккаунтов
-func (a *AccountAnalyzer) CalculatePeriodStats() error {
-	// Получаем все активные аккаунты за последние 15 секунд
-	accounts, err := a.accountRepo.GetActiveAccountsLastPeriod()
-	if err != nil {
-		return err
-	}
-
-	logrus.Infof("Пересчитываем статистику для %d аккаунтов", len(accounts))
-
-	errorCount := 0
-	for _, account := range accounts {
-		if err := a.calculator.CalculatePeriodMetrics(account); err != nil {
-			logrus.Errorf("Ошибка расчета метрик для %s: %v", account, err)
-			errorCount++
-		}
-	}
-
-	if errorCount > 0 {
-		logrus.Warnf("Обработано %d аккаунтов с %d ошибками", len(accounts), errorCount)
-	} else {
-		logrus.Infof("Статистика успешно пересчитана для %d аккаунтов", len(accounts))
-	}
-
 	return nil
 }
 
@@ -174,21 +165,52 @@ func (a *AccountAnalyzer) GetTokenTracker() *TokenTracker {
 	return a.tokenTracker
 }
 
-// StartPeriodicTasks запускает периодические задачи (можно вызвать в отдельной горутине)
-func (a *AccountAnalyzer) StartPeriodicTasks(ctx context.Context) {
-	// Пересчитываем статистику каждые 15 секунд
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			logrus.Info("Остановка периодических задач анализа аккаунтов")
-			return
-		case <-ticker.C:
-			if err := a.CalculatePeriodStats(); err != nil {
-				logrus.Errorf("Ошибка пересчета статистики: %v", err)
-			}
-		}
+// GetAccountActivityForPeriod получает активность аккаунта за конкретный период
+func (a *AccountAnalyzer) GetAccountActivityForPeriod(address string, period time.Time) (*models.AccountActivity, error) {
+	activity, err := a.accountRepo.GetAccountActivityForPeriod(address, period)
+	if err != nil {
+		logrus.Errorf("Ошибка получения активности для %s за %v: %v", address, period, err)
+		return nil, err
 	}
+
+	logrus.Debugf("Получена активность для %s за %v: транзакций = %d, объем = %s ETH",
+		address, period, activity.TransactionCount, activity.VolumeETH)
+
+	return activity, nil
+}
+
+// GetCurrentPeriodActivity получает активность аккаунта за текущий 15-секундный период
+func (a *AccountAnalyzer) GetCurrentPeriodActivity(address string) (*models.AccountActivity, error) {
+	currentPeriod := utils.GetCurrentPeriodStart()
+	return a.GetAccountActivityForPeriod(address, currentPeriod)
+}
+
+// GetActiveAccountsForPeriod получает активность всех аккаунтов за конкретный период
+func (a *AccountAnalyzer) GetActiveAccountsForPeriod(period time.Time) ([]models.AccountActivity, error) {
+	activities, err := a.accountRepo.GetAllAccountsActivityForPeriod(period)
+	if err != nil {
+		logrus.Errorf("Ошибка получения активности всех аккаунтов за %v: %v", period, err)
+		return nil, err
+	}
+
+	logrus.Infof("Получена активность %d аккаунтов за %v", len(activities), period)
+	return activities, nil
+}
+
+// GetCurrentPeriodActiveAccounts получает активность всех аккаунтов за текущий период
+func (a *AccountAnalyzer) GetCurrentPeriodActiveAccounts() ([]models.AccountActivity, error) {
+	currentPeriod := utils.GetCurrentPeriodStart()
+	return a.GetActiveAccountsForPeriod(currentPeriod)
+}
+
+// GetAccountActivityHistory получает историю активности аккаунта за несколько периодов
+func (a *AccountAnalyzer) GetAccountActivityHistory(address string, fromPeriod, toPeriod time.Time) ([]models.AccountActivity, error) {
+	activities, err := a.accountRepo.GetAccountActivityHistory(address, fromPeriod, toPeriod)
+	if err != nil {
+		logrus.Errorf("Ошибка получения истории активности для %s: %v", address, err)
+		return nil, err
+	}
+
+	logrus.Debugf("Получена история активности для %s: %d периодов", address, len(activities))
+	return activities, nil
 }

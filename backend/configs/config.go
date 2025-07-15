@@ -1,7 +1,9 @@
 package configs
 
 import (
+	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/joho/godotenv"
@@ -36,7 +38,15 @@ type ServerConfig struct {
 }
 
 func Load() *Config {
-	err := godotenv.Load()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	envDir := filepath.Join(home, "Desktop", "blockchain_analyzer", "backend")
+	envPath := filepath.Join(envDir, ".env")
+
+	err = godotenv.Load(envPath)
 	if err != nil {
 		logrus.Warning("Файл .env не найден, используем переменные окружения")
 	}

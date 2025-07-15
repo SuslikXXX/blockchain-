@@ -4,19 +4,33 @@ import (
 	"backend/internal/models"
 	"backend/internal/repositories"
 	"backend/internal/utils"
+	"backend/pkg/ethereum"
+	"context"
+	"fmt"
+	"math/big"
+	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	contractCache    = make(map[string]bool)
+	contractCacheMux sync.RWMutex
+)
+
 type ActivityCalculator struct {
-	accountRepo *repositories.AccountRepository
+	accountRepo  *repositories.AccountRepository
+	ethClient    *ethereum.Client
+	tokenAddress common.Address // Адрес нашего токена
 }
 
-// ИСПРАВЛЕНО: добавлен конструктор с dependency injection
-func NewActivityCalculator(accountRepo *repositories.AccountRepository) *ActivityCalculator {
+func NewActivityCalculator(accountRepo *repositories.AccountRepository, ethClient *ethereum.Client, tokenAddress common.Address) *ActivityCalculator {
 	return &ActivityCalculator{
-		accountRepo: accountRepo,
+		accountRepo:  accountRepo,
+		ethClient:    ethClient,
+		tokenAddress: tokenAddress,
 	}
 }
 
@@ -25,6 +39,37 @@ func NewActivityCalculatorDeprecated() *ActivityCalculator {
 	return &ActivityCalculator{
 		accountRepo: repositories.NewAccountRepository(),
 	}
+}
+
+// isContract проверяет, является ли адрес контрактом
+func (c *ActivityCalculator) isContract(address string) bool {
+	if c.ethClient == nil {
+		return false // Если клиент не инициализирован, считаем что это не контракт
+	}
+
+	// Проверяем кэш
+	contractCacheMux.RLock()
+	if isContract, exists := contractCache[address]; exists {
+		contractCacheMux.RUnlock()
+		return isContract
+	}
+	contractCacheMux.RUnlock()
+
+	code, err := c.ethClient.GetClient().CodeAt(context.Background(), common.HexToAddress(address), nil)
+	if err != nil {
+		logrus.Errorf("Ошибка получения кода для адреса %s: %v", address, err)
+		return false
+	}
+
+	// Если есть байткод (длина > 0), значит это контракт
+	isContract := len(code) > 0
+
+	// Сохраняем в кэш
+	contractCacheMux.Lock()
+	contractCache[address] = isContract
+	contractCacheMux.Unlock()
+
+	return isContract
 }
 
 func (c *ActivityCalculator) CalculateTransactionFrequency(address string, stats *models.AccountStats) error {
@@ -36,8 +81,6 @@ func (c *ActivityCalculator) CalculateTransactionFrequency(address string, stats
 	if err != nil {
 		return err
 	}
-
-	stats.LastPeriodTransactions = periodTxCount
 
 	// Получаем транзакции за последние 24 часа
 	since := time.Now().Add(-24 * time.Hour)
@@ -59,8 +102,6 @@ func (c *ActivityCalculator) CalculateVolumeMetrics(address string, stats *model
 		return err
 	}
 
-	stats.SetLastPeriodVolumeETH(volume)
-
 	logrus.Debugf("Аккаунт %s: объем за 15 секунд = %s ETH", address, volume.String())
 	return nil
 }
@@ -75,41 +116,6 @@ func (c *ActivityCalculator) CalculateTokenInteractions(address string, stats *m
 	stats.UniqueTokensCount = uniqueTokens
 
 	logrus.Debugf("Аккаунт %s: уникальных токенов = %d", address, uniqueTokens)
-	return nil
-}
-
-func (c *ActivityCalculator) CalculatePeriodMetrics(address string) error {
-	// ИСПРАВЛЕНО: используем утилитарную функцию для расчета периода
-	currentPeriod := utils.GetCurrentPeriodStart()
-
-	// Получаем транзакции за текущий период 15 секунд
-	txCount, err := c.accountRepo.GetTransactionCountForPeriod(address, currentPeriod)
-	if err != nil {
-		return err
-	}
-
-	// Получаем объем за текущий период 15 секунд
-	volume, err := c.accountRepo.GetVolumeETHForPeriod(address, currentPeriod)
-	if err != nil {
-		return err
-	}
-
-	// Создаем или обновляем запись активности
-	activity := &models.AccountActivity{
-		Address:          address,
-		Period:           currentPeriod,
-		TransactionCount: txCount,
-		VolumeETH:        volume.String(),
-		TokenTransfers:   0, // Пока не реализовано
-	}
-
-	if err := c.accountRepo.SaveAccountActivity(activity); err != nil {
-		return err
-	}
-
-	logrus.Debugf("Сохранены метрики для %s за %v: транзакций = %d, объем = %s ETH",
-		address, currentPeriod, txCount, volume.String())
-
 	return nil
 }
 
@@ -131,4 +137,107 @@ func (c *ActivityCalculator) CalculateAllMetrics(address string, stats *models.A
 	}
 
 	return nil
+}
+
+func (c *ActivityCalculator) ProcessAccountActivities() error {
+	// Получаем начало текущего периода
+	currentPeriodStart := utils.GetCurrentPeriodStart()
+	nextPeriodStart := currentPeriodStart.Add(15 * time.Second)
+
+	// Проверяем, не пропустили ли мы период
+	if time.Now().After(nextPeriodStart) {
+		logrus.Warnf("Пропущен период обработки активности: %v", currentPeriodStart)
+		return fmt.Errorf("period processing took too long")
+	}
+
+	// Получаем все транзакции за текущий период
+	transactions, err := c.accountRepo.GetTransactionsSince(currentPeriodStart)
+	if err != nil {
+		return err
+	}
+
+	// Создаем map для хранения активности по адресам
+	activityMap := make(map[string]*models.AccountActivity)
+
+	// Создаем map для кэширования результатов проверки на контракт
+	contractCache := make(map[string]bool)
+
+	// Обрабатываем каждую транзакцию
+	for _, tx := range transactions {
+
+		// Обрабатываем отправителя, проверяем, не является ли он контрактом, ведь нас интересуют только активность обычных аккаунтов
+		// В будущем можно будет легко переделать еще и на обработку контрактов, но сейчас это не нужно
+		isContract, exists := contractCache[tx.From]
+		if !exists {
+			isContract = c.isContract(tx.From)
+			contractCache[tx.From] = isContract
+		}
+
+		// Проверяем, является ли это обычной ETH транзакцией
+		if tx.To != c.tokenAddress.Hex() && !isContract {
+			// Это обычная ETH транзакция
+			fromActivity := getOrCreateActivity(activityMap, tx.From, currentPeriodStart)
+			fromActivity.TransactionCount++
+
+			if value, ok := big.NewInt(0).SetString(tx.Value, 10); ok {
+				currentVolume := fromActivity.GetVolumeETH()
+				fromActivity.SetVolumeETH(currentVolume.Add(currentVolume, value))
+			}
+		}
+
+		// Если транзакция к токен-контракту, она будет обработана как ERC20 трансфер позже
+
+	}
+
+	// Получаем все ERC20 трансферы за текущий период
+	erc20Transfers, err := c.getERC20TransfersSince(currentPeriodStart)
+	if err != nil {
+		logrus.Errorf("Ошибка получения ERC20 трансферов: %v", err)
+	} else {
+		// Обрабатываем каждый ERC20 трансфер
+		for _, transfer := range erc20Transfers {
+
+			// Проверяем отправителя на контракт
+			// Если в будущем я реализую автомавызов транзакций контрактом, то это проверку нужно будет убрать
+			isContract, exists := contractCache[transfer.From]
+			if !exists {
+				isContract = c.isContract(transfer.From)
+				contractCache[transfer.From] = isContract
+			}
+
+			// Обрабатываем только отправителя и только если это не контракт
+			if !isContract {
+				fromActivity := getOrCreateActivity(activityMap, transfer.From, currentPeriodStart)
+				fromActivity.TokenTransfers++
+			}
+		}
+	}
+
+	// Сохраняем или обновляем все активности
+	for _, activity := range activityMap {
+		if err := c.accountRepo.SaveAccountActivity(activity); err != nil {
+			logrus.Errorf("Ошибка сохранения активности для %s: %v", activity.Address, err)
+		}
+	}
+
+	return nil
+}
+
+func (c *ActivityCalculator) getERC20TransfersSince(since time.Time) ([]models.ERC20Transfer, error) {
+	nextPeriod := since.Add(15 * time.Second)
+	var transfers []models.ERC20Transfer
+	err := repositories.DB.Where("created_at >= ? AND created_at < ?", since, nextPeriod).Find(&transfers).Error
+	return transfers, err
+}
+
+func getOrCreateActivity(activityMap map[string]*models.AccountActivity, address string, period time.Time) *models.AccountActivity {
+	activity, exists := activityMap[address]
+	if !exists {
+		activity = &models.AccountActivity{
+			Address: address,
+			Period:  period,
+		}
+		activityMap[address] = activity
+	}
+	return activity
 }

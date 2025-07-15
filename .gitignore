@@ -1,5 +1,4 @@
 node_modules
-.env
 
 # Hardhat files
 /cache
@@ -18,8 +17,41 @@ ignition/deployments/chain-31337
 
 # Log-files
 *.log
+logs/
+backend/logs/
+
+# Environment files
+.env
+backend/.env
+*.env.local
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # Blockchain specific
 blockchain/node_modules/
 blockchain/cache/
 blockchain/artifacts/
+
+# Dependencies
+package-lock.json
+package.json
+
+# Build files
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+.DS_Store

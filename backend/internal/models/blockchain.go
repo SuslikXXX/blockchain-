@@ -8,11 +8,11 @@ import (
 // Transaction - оптимизированная модель для транзакций Ethereum
 type Transaction struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
-	Hash        string    `gorm:"uniqueIndex;not null;type:char(66)" json:"hash"` // 0x + 64 hex chars
+	Hash        string    `gorm:"not null;type:char(66)" json:"hash"` // 0x + 64 hex chars
 	BlockNumber uint64    `gorm:"not null;index:idx_transactions_block_time" json:"block_number"`
-	From        string    `gorm:"not null;index;type:char(42)" json:"from"` // 0x + 40 hex chars
-	To          string    `gorm:"not null;index;type:char(42)" json:"to"`   // 0x + 40 hex chars
-	Value       string    `gorm:"not null;type:numeric" json:"value"`       // Используем numeric для больших чисел
+	From        string    `gorm:"not null;index;type:char(42);check:\"from\" != '0x0000000000000000000000000000000000000000' AND \"from\" != ''" json:"from"` // 0x + 40 hex chars
+	To          string    `gorm:"not null;index;type:char(42);check:\"to\" != '0x0000000000000000000000000000000000000000' AND \"to\" != ''" json:"to"`       // 0x + 40 hex chars
+	Value       string    `gorm:"not null;type:numeric" json:"value"`                                                                                         // Используем numeric для больших чисел
 	GasUsed     uint64    `gorm:"not null" json:"gas_used"`
 	GasPrice    string    `gorm:"not null;type:numeric" json:"gas_price"`                      // numeric для точности
 	Status      uint64    `gorm:"not null;index" json:"status"`                                // Индекс для фильтрации успешных/неуспешных
@@ -79,13 +79,12 @@ func (t *Transaction) GetTotalCost() *big.Int {
 // ERC20Transfer - оптимизированная модель для ERC20 трансферов
 type ERC20Transfer struct {
 	ID              uint      `gorm:"primaryKey" json:"id"`
-	TransactionHash string    `gorm:"not null;index;type:char(66)" json:"transaction_hash"`
+	TransactionHash string    `gorm:"uniqueIndex;not null;type:char(66)" json:"transaction_hash"`
 	ContractAddress string    `gorm:"not null;index;type:char(42)" json:"contract_address"`
-	From            string    `gorm:"not null;index;type:char(42)" json:"from"`
-	To              string    `gorm:"not null;index;type:char(42)" json:"to"`
+	From            string    `gorm:"not null;index;type:char(42);check:\"from\" != '0x0000000000000000000000000000000000000000' AND \"from\" != ''" json:"from"`
+	To              string    `gorm:"not null;index;type:char(42);check:\"to\" != '0x0000000000000000000000000000000000000000' AND \"to\" != ''" json:"to"`
 	Value           string    `gorm:"not null;type:numeric" json:"value"` // numeric для точности
 	BlockNumber     uint64    `gorm:"not null;index:idx_erc20_block_time" json:"block_number"`
-	LogIndex        uint      `gorm:"not null" json:"log_index"`
 	CreatedAt       time.Time `gorm:"index:idx_erc20_block_time" json:"created_at"` // Составной индекс с BlockNumber
 }
 
@@ -109,8 +108,24 @@ func (e *ERC20Transfer) SetValue(value *big.Int) {
 
 // AnalyzerState - модель для сохранения состояния анализатора
 type AnalyzerState struct {
-	ID                 uint      `gorm:"primaryKey" json:"id"`
-	LastProcessedBlock uint64    `gorm:"not null" json:"last_processed_block"`
-	CreatedAt          time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt          time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                      uint      `gorm:"primaryKey" json:"id"`
+	LastProcessedBlock      uint64    `gorm:"not null" json:"last_processed_block"`
+	LastProcessedActivityID uint64    `gorm:"not null;default:0" json:"last_processed_activity_id"`
+	CreatedAt               time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt               time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// ContractTransaction представляет транзакцию контракта
+type ContractTransaction struct {
+	ID              uint64    `gorm:"primaryKey;autoIncrement"`
+	ContractAddress string    `gorm:"index;not null"`
+	TransactionHash string    `gorm:"uniqueIndex;not null"`
+	From            string    `gorm:"index;not null"`
+	To              string    `gorm:"index;not null"`
+	Value           string    `gorm:"not null"`
+	Method          string    `gorm:"not null"`
+	BlockNumber     uint64    `gorm:"index;not null"`
+	Timestamp       time.Time `gorm:"index;not null"`
+	GasUsed         uint64    `gorm:"not null"`
+	Status          uint64    `gorm:"not null"`
 }

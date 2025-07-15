@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"io"
+	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"backend/configs"
 	"backend/internal/repositories"
 	"backend/internal/services"
-	"backend/pkg/ethereum"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
@@ -25,7 +26,15 @@ func init() {
 	})
 	logrus.SetOutput(os.Stdout)
 
-	logFile, err := os.OpenFile("logs/app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	logDir := filepath.Join(home, "Desktop", "blockchain_analyzer", "backend", "logs")
+	logName := filepath.Join(logDir, "app.log")
+	logFile, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+
 	if err != nil {
 		logrus.Fatalf("Ошибка открытия файла логирования: %v", err)
 	}
@@ -54,13 +63,7 @@ func main() {
 		logrus.Fatalf("Ошибка миграции БД: %v", err)
 	}
 
-	// Создаем Ethereum клиент
-	ethClient, err := ethereum.NewClient(ctx, cfg)
-	if err != nil {
-		logrus.Fatalf("Ошибка подключения к Ethereum: %v", err)
-	}
-	defer ethClient.Close()
-
+	// Проверяем адрес контракта
 	contractAddr := common.HexToAddress(cfg.Ethereum.ContractAddress)
 	if contractAddr == (common.Address{}) {
 		logrus.Fatalf("Неверный адрес контракта: %s", cfg.Ethereum.ContractAddress)
@@ -74,7 +77,7 @@ func main() {
 		logrus.Fatalf("Ошибка создания анализатора: %v", err)
 	}
 
-	if err := analyzer.Start(ctx, contractAddr); err != nil {
+	if err := analyzer.Start(ctx); err != nil {
 		logrus.Fatalf("Ошибка запуска анализатора: %v", err)
 	}
 

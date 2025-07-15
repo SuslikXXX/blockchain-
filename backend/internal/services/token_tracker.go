@@ -89,7 +89,7 @@ func (t *TokenTracker) UpdateTokenBalance(address, tokenAddress string, amount *
 		currentBalance = currentBalance.Sub(currentBalance, amount)
 		// Защита от отрицательного баланса
 		if currentBalance.Sign() < 0 {
-			logrus.Warnf("Отрицательный баланс для %s токен %s: %s",
+			logrus.Debugf("Предотвращение отрицательного баланса для %s токен %s: было бы %s, устанавливаем 0",
 				address, tokenAddress, currentBalance.String())
 			currentBalance = big.NewInt(0)
 		}
